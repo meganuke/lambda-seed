@@ -1,0 +1,97 @@
+service: lambda-seed-example
+frameworkVersion: '3'
+useDotenv: true
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  memorySize: 512
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'ap-southeast-2'}
+  vpc:
+    securityGroupIds: ${ssm:lambda-security-group, ''}
+    subnetIds:
+      - ${ssm:subneta-id, ''}
+      - ${ssm:subnetb-id, ''}  
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - ec2:CreateNetworkInterface
+        - ec2:DescribeNetworkInterfaces
+        - ec2:DeleteNetworkInterface
+        - ec2:AttachNetworkInterface
+      Resource: '*'
+    - Effect: Allow
+      Action:
+        - logs:CreateLogGroup
+        - logs:CreateLogStream
+        - logs:PutLogEvents
+      Resource: '*'
+    - Effect: Allow
+      Action:
+        - sns:Publish
+      Resource: '*'
+    - Effect: Allow
+      Action:
+        - secretsmanager:GetSecretValue
+      Resource: 'arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:core/*'
+
+  environment:
+    PGHOST: ${env:PGHOST, ''}
+    PGUSER: ${env:PGUSER, ''}
+    PGPASSWORD: ${env:PGPASSWORD, ''}
+    PGDATABASE: ${env:PGDATABASE, ''}
+    PGPORT: ${env:PGPORT, ''}
+    #USE_SECRETS_MANAGER: ${env:USE_SECRETS_MANAGER, 'true'}
+
+functions:
+  #----------------- CRUD ---------------
+  find:
+    handler: src/handler/handler.find
+    events:
+      - http:
+          path: api
+          method: get
+          cors: true
+          authorizer: ${self:custom.authorizer}
+
+
+custom:
+  serverless-offline:
+    httpPort: 3000
+    lambdaPort: 3002
+  authorizer:
+    arn: ${ssm:authorizer-arn} 
+    identitySource: method.request.header.Authorization
+
+resources:
+  Resources:
+    GatewayResponse401:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
+        ResponseType: UNAUTHORIZED
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
+        StatusCode: '401'
+    GatewayResponse403:
+      Type: 'AWS::ApiGateway::GatewayResponse'
+      Properties:
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
+        ResponseType: ACCESS_DENIED
+        RestApiId:
+          Ref: 'ApiGatewayRestApi'
+        StatusCode: '403'
+
+package:
+  individually: true
+  exclude:
+    - test/**
+
+plugins:
+  - serverless-esbuild
+  - serverless-offline
