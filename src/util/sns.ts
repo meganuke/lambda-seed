@@ -3,7 +3,7 @@ import {PublishCommand, SNSClient} from '@aws-sdk/client-sns';
 export const sendSnsMessage = async (message: any, topicArn: string) => {
   let snsClient = new SNSClient({});
   if (process.env.IS_OFFLINE) {
-    console.log('SNS publishok skipped.');
+    console.log('SNS publish skipped.');
     return;
     // snsClient = new SNSClient({
     //   region: process.env.SNS_LOCAL_TEST_REGION ?? 'us-east-1', // replace with your desired region
